@@ -27,8 +27,7 @@ development. The server listens on `127.0.0.1:8787`.
   `mimeType`. The caption is the text actually passed to speech.
 - Set `SIGNWAVE_FRONTEND_ORIGIN` to the exact browser origin, including
   scheme and port when applicable, to allow cross-origin requests during local
-  development. Deploying for a hosted Base44 app requires a separate HTTPS
-  deployment with authentication and rate limits.
+  development.
 
 Call the endpoint when each phrase is recognized. Keep the recognition loop
 running while the request is pending and queue playback in phrase order.
@@ -91,9 +90,37 @@ base44 dev
 Sign in once per machine and link the frontend to SignWave once per local
 checkout. Run `npm run build` from `frontend/` for a production build.
 
-The imported camera screen still uses its sample-sign demo and browser speech.
-Wiring live camera predictions to the included model and the Python speech API
-is a separate integration step.
+### Try live webcam-to-speech
+
+1. For a local test, create `frontend/.env.local` with
+   `VITE_SIGNWAVE_LOCAL_SPEECH=true`. In `backend/.env`, set
+   `SIGNWAVE_FRONTEND_ORIGIN` to the exact URL printed by the frontend dev
+   server. Restart the frontend after changing its environment.
+2. Set the Gemini and ElevenLabs keys in `backend/.env` and run
+   `python phrase_api.py` from `backend/`. The local frontend uses
+   `http://127.0.0.1:8787/api/phrases`.
+3. Open the communication screen, turn on the camera, and wait for **Live
+   recognition · English**. Sign `hello → world` or `this is → test`, holding
+   each sign briefly. The caption appears first and the MP3 plays when ready.
+   The runtime loads from jsDelivr, and model inference stays in the browser.
+
+The sample-sign and typed-text paths still use browser speech. The trained
+model supports two English demo phrases. Check idle-camera behavior before
+presenting because this model export has no background class.
+
+### Configure hosted live speech
+
+Run the Python API behind your host's HTTPS ingress. Set
+`SIGNWAVE_API_HOST=0.0.0.0`, use the `PORT` supplied by the host, and configure
+`SIGNWAVE_SPEECH_TOKEN`, `GEMINI_API_KEY`, and `ELEVENLABS_API_KEY` on that
+service. Apply request rate limits at the ingress before public use.
+
+In Base44 Secrets, set `SIGNWAVE_SPEECH_URL` to the HTTPS URL ending in
+`/api/phrases` and `SIGNWAVE_SPEECH_TOKEN` to the same server token.
+Sign in to the published SignWave app before using live cloud speech. The
+Base44 server function authenticates the caller and forwards completed phrases
+with the token. The model and its asset files must be included in the Base44
+deployment.
 
 ## First-time setup on Windows (for every teammate)
 
