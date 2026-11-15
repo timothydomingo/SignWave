@@ -1,4 +1,4 @@
-# SignWave
+ SignWave
 
 **Accessible sign-to-speech prototype · Hack The Nest 2026**
 
