@@ -1,4 +1,4 @@
-"""Turn text into speech and save it as an MP3."""
+"""Generate ElevenLabs speech for the CLI and local HTTP API."""
 
 import json
 import os
@@ -71,8 +71,8 @@ def load_voice_preferences():
     return valid
 
 
-def speak_text(text, voice=None, *, output_file=OUTPUT_FILE, voice_settings=None):
-    """Save speech using 'male', 'female', or the configured default voice."""
+def iter_speech_audio(text, voice=None, *, voice_settings=None):
+    """Yield nonempty MP3 chunks using the configured voice and model."""
     cleaned = text.strip() if isinstance(text, str) else ""
     if not cleaned:
         raise ValueError("Please type some text before generating speech.")
@@ -93,8 +93,6 @@ def speak_text(text, voice=None, *, output_file=OUTPUT_FILE, voice_settings=None
         voice_id = VOICE_IDS[selected_voice]
     else:
         voice_id = (os.getenv("ELEVENLABS_VOICE_ID") or "").strip() or DEFAULT_VOICE_ID
-    output_path = Path(output_file)
-
     values = {
         "stability": DEFAULT_VOICE_SETTINGS["stability"],
         "similarity_boost": DEFAULT_VOICE_SETTINGS["similarity_boost"],
@@ -117,17 +115,24 @@ def speak_text(text, voice=None, *, output_file=OUTPUT_FILE, voice_settings=None
             output_format="mp3_44100_128",
             **settings,
         )
-        # Wait for audio before opening the file, so API rejections preserve it.
+        # Read the first chunk eagerly so an empty response becomes an error.
         first_chunk = next(chunk for chunk in audio if chunk)
-        with output_path.open("wb") as audio_file:
-            audio_file.write(first_chunk)
-            for chunk in audio:
-                if chunk:
-                    audio_file.write(chunk)
+        yield first_chunk
+        yield from (chunk for chunk in audio if chunk)
     except Exception as exc:
         raise RuntimeError(
             f"Speech generation failed ({type(exc).__name__}: {exc}). "
             "Check your internet connection, API key, voice, model, and quota."
         ) from exc
 
+def speak_text(text, voice=None, *, output_file=OUTPUT_FILE, voice_settings=None):
+    """Save speech from the same generator used by the HTTP API."""
+    output_path = Path(output_file)
+    audio = iter_speech_audio(text, voice, voice_settings=voice_settings)
+    # Preserve an existing file when ElevenLabs rejects the request.
+    first_chunk = next(audio)
+    with output_path.open("wb") as audio_file:
+        audio_file.write(first_chunk)
+        for chunk in audio:
+            audio_file.write(chunk)
     return output_path

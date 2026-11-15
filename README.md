@@ -6,6 +6,38 @@ SignWave is a hackathon prototype that recognizes a **limited set of supported s
 
 > **Scope:** This is a limited-vocabulary prototype, **not a complete or certified American Sign Language (ASL) interpreter**. Hand tracking and gesture recognition alone do not translate continuous ASL.
 
+## Browser recognition and phrase audio
+
+The browser runs the Teachable Machine TensorFlow.js model on webcam frames.
+The trained export is in `recognition-model/`. Keep `model.json`, `metadata.json`, and `weights.bin` together when serving it to the frontend. The
+`phrase-recognition.mjs` module accepts the model's prediction array and emits
+one phrase after it observes a supported sequence of stable labels. The
+current demo sequences are `hello → world` and `this is → test`. Test the
+idle camera and ordinary motion before enabling playback, especially if the
+model was trained without a background class.
+
+Install the packages in `requirements.txt`, configure `GEMINI_API_KEY` and
+`ELEVENLABS_API_KEY` in `.env`, and run `python phrase_api.py` for local
+development. The server listens on `127.0.0.1:8787`.
+
+- `GET /health` checks that the server is running.
+- `POST /api/phrases` accepts JSON such as `{"text":"hello world"}`.
+  Optionally include `"voice":"male"` or `"voice":"female"`.
+- The response includes `text`, `cleanupApplied`, `audioBase64`, and
+  `mimeType`. The caption is the text actually passed to speech.
+- Set `SIGNWAVE_FRONTEND_ORIGIN` to the exact browser origin, including
+  scheme and port when applicable, to allow cross-origin requests during local
+  development. Deploying for a hosted Base44 app requires a separate HTTPS
+  deployment with authentication and rate limits.
+
+Call the endpoint when each phrase is recognized. Keep the recognition loop
+running while the request is pending and queue playback in phrase order.
+This API returns one finished MP3 per phrase. It does not stream MP3 chunks
+over HTTP. Confirm the timing on the demo network before promising that
+speech will overlap the next phrase. If Gemini cleanup fails, the existing
+language module passes the recognized text through to speech.
+
+
 ## How the project works
 
 ```text
