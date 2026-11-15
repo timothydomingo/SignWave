@@ -1,6 +1,7 @@
 """Local HTTP bridge from recognized phrases to Gemini and ElevenLabs."""
 
 import base64
+import hmac
 import json
 import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -32,7 +33,7 @@ def render_phrase(payload, clean, audio_chunks):
     }
 
 
-def build_handler(clean, audio_chunks, allowed_origin=None):
+def build_handler(clean, audio_chunks, allowed_origin=None, api_token=None):
     class Handler(BaseHTTPRequestHandler):
         def reply(self, status, payload):
             body = b"" if payload is None else json.dumps(payload).encode("utf-8")
@@ -64,6 +65,11 @@ def build_handler(clean, audio_chunks, allowed_origin=None):
         def do_POST(self):
             if self.path != "/api/phrases":
                 return self.reply(404, {"error": "Route not found."})
+            if api_token and not hmac.compare_digest(
+                self.headers.get("Authorization", "").encode("utf-8"),
+                f"Bearer {api_token}".encode("utf-8"),
+            ):
+                return self.reply(401, {"error": "Unauthorized."})
             origin = self.headers.get("Origin")
             if origin and origin != allowed_origin:
                 return self.reply(403, {"error": "This browser origin is not allowed."})
@@ -96,9 +102,14 @@ if __name__ == "__main__":
     from speech import iter_speech_audio
 
     load_dotenv()
+    host = os.getenv("SIGNWAVE_API_HOST", "127.0.0.1")
+    port = int(os.getenv("PORT", "8787"))
+    api_token = os.getenv("SIGNWAVE_SPEECH_TOKEN")
+    if host not in ("127.0.0.1", "localhost") and not api_token:
+        raise SystemExit("Configure SIGNWAVE_SPEECH_TOKEN before exposing the speech server.")
     handler = build_handler(
-        clean_text_with_details, iter_speech_audio, os.getenv("SIGNWAVE_FRONTEND_ORIGIN")
+        clean_text_with_details, iter_speech_audio, os.getenv("SIGNWAVE_FRONTEND_ORIGIN"), api_token
     )
-    with ThreadingHTTPServer(("127.0.0.1", 8787), handler) as server:
-        print("SignWave API at http://127.0.0.1:8787", flush=True)
+    with ThreadingHTTPServer((host, port), handler) as server:
+        print(f"SignWave API at http://{host}:{port}", flush=True)
         server.serve_forever()

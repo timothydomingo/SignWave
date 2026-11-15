@@ -34,7 +34,12 @@ export default function Studio() {
       >
         <h1 className="sr-only">SignWave translator</h1>
 
-        <CameraPreview demoRunning={session.demoRunning} onToggleDemo={session.toggleDemo} />
+        <CameraPreview
+          demoRunning={session.demoRunning}
+          onToggleDemo={session.toggleDemo}
+          onCameraStart={session.unlockLiveAudio}
+          onPhrase={session.recognizePhrase}
+        />
 
         <Readout
           result={session.result}

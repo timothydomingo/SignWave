@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { processText } from "@/lib/server-fns";
 import { DEMO_SIGN_SEQUENCES } from "@/lib/demoSigns";
 import { cancelSpeech, speakText, speechSupported } from "@/lib/speech";
+import useLivePhraseSpeech from "@/hooks/useLivePhraseSpeech";
 
 const TOKEN_MS = 780;
 
@@ -20,6 +21,22 @@ export default function useCommunicationSession() {
   const sequenceRef = useRef(0);
   const lastSpokenRef = useRef("");
   const hasResultRef = useRef(false);
+  const processingRequest = useRef(0);
+
+  const showLiveCaption = useCallback((text) => {
+    setResult({ translated: text, language: "en" });
+  }, []);
+  const { enqueue, replay: replayLive, reset: resetLive, unlock: unlockLiveAudio } =
+    useLivePhraseSpeech({ voice, onCaption: showLiveCaption, setStatus, setError });
+
+  const recognizePhrase = useCallback((text) => {
+    processingRequest.current += 1;
+    cancelSpeech();
+    lastSpokenRef.current = "";
+    setManualText("");
+    setGlosses([]);
+    enqueue(text);
+  }, [enqueue]);
 
   useEffect(() => {
     hasResultRef.current = Boolean(result);
@@ -34,14 +51,17 @@ export default function useCommunicationSession() {
       const lang = overrides.language ?? language;
       if (!text && tokens.length === 0) return null;
 
+      const request = ++processingRequest.current;
       setStatus("processing");
       setError("");
       try {
         const data = await processText({ data: { glosses: tokens, manualText: text, language: lang } });
+        if (request !== processingRequest.current) return null;
         setResult(data);
         setStatus("idle");
         return data;
       } catch {
+        if (request !== processingRequest.current) return null;
         setStatus("idle");
         setError("We couldn't process that text just now. Please try again.");
         return null;
@@ -89,20 +109,27 @@ export default function useCommunicationSession() {
   }, [language]);
 
   const toggleDemo = useCallback(() => {
+    processingRequest.current += 1;
+    resetLive();
+    cancelSpeech();
+    setStatus("idle");
     setDemoRunning((running) => {
       if (running) queueRef.current = [];
       return !running;
     });
-  }, []);
+  }, [resetLive]);
 
   const submitManual = useCallback(async () => {
     if (!manualText.trim()) return null;
+    resetLive();
     setDemoRunning(false);
     setGlosses([]);
     return processNow({ glosses: [], manualText });
-  }, [manualText, processNow]);
+  }, [manualText, processNow, resetLive]);
 
   const clearAll = useCallback(() => {
+    processingRequest.current += 1;
+    resetLive();
     setDemoRunning(false);
     queueRef.current = [];
     setGlosses([]);
@@ -112,9 +139,10 @@ export default function useCommunicationSession() {
     setStatus("idle");
     lastSpokenRef.current = "";
     cancelSpeech();
-  }, []);
+  }, [resetLive]);
 
   const speak = useCallback(async () => {
+    if (replayLive()) return;
     if (!speechSupported()) {
       setError("This browser can't play speech audio. The sentence stays on screen.");
       return;
@@ -136,9 +164,10 @@ export default function useCommunicationSession() {
         setError("Audio couldn't play on this device.");
       },
     });
-  }, [result, processNow, voice]);
+  }, [result, processNow, voice, replayLive]);
 
   const replay = useCallback(() => {
+    if (replayLive()) return;
     const text = lastSpokenRef.current || result?.translated;
     if (!text || !speechSupported()) return;
     cancelSpeech();
@@ -154,7 +183,7 @@ export default function useCommunicationSession() {
         setError("Audio couldn't play on this device.");
       },
     });
-  }, [result, language, voice]);
+  }, [result, language, voice, replayLive]);
 
   return {
     glosses,
@@ -169,6 +198,8 @@ export default function useCommunicationSession() {
     error,
     demoRunning,
     toggleDemo,
+    recognizePhrase,
+    unlockLiveAudio,
     submitManual,
     processNow,
     clearAll,

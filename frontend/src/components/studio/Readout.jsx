@@ -13,7 +13,7 @@ export default function Readout({ result, glosses, manualText, status, error }) 
   const shown = sentence || source;
 
   return (
-    <div className="flex h-[3.75rem] shrink-0 items-start pt-3 sm:h-[4.5rem] sm:pt-3.5">
+    <div className="flex min-h-[3.75rem] shrink-0 flex-col items-start pt-3 sm:min-h-[4.5rem] sm:pt-3.5">
       {shown ? (
         <p
           className={`line-clamp-2 text-[1.25rem] leading-[1.5] sm:text-[1.5rem] ${
@@ -22,12 +22,10 @@ export default function Readout({ result, glosses, manualText, status, error }) 
         >
           {shown}
         </p>
-      ) : error ? (
-        <p className="line-clamp-2 text-sm leading-relaxed text-destructive">{error}</p>
       ) : null}
 
       {error ? (
-        <p role="status" className="sr-only">
+        <p role="status" className="line-clamp-2 text-sm leading-relaxed text-destructive">
           {error}
         </p>
       ) : null}
