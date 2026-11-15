@@ -2,21 +2,21 @@
 
 **Hack The Nest 2026 | Accessible sign-to-speech prototype**
 
-SignWave is a hackathon prototype that recognizes a **limited set of supported signs or gestures**, displays the confirmed message as a caption, and converts the message into speech using ElevenLabs. The goal is to let a person on a second device hear the message during a call.
+SignWave is a hackathon prototype that recognizes a **limited set of supported signs or gestures**, displays the confirmed message as a caption, and converts the message into speech using ElevenLabs. The web demo is designed to play the recognized phrase as audio.
 
 > **Scope:** This is a limited-vocabulary prototype, **not a complete or certified American Sign Language (ASL) interpreter**. Hand tracking and gesture recognition alone do not translate continuous ASL.
 
 ## Browser recognition and phrase audio
 
 The browser runs the Teachable Machine TensorFlow.js model on webcam frames.
-The trained export is in `recognition-model/`. Keep `model.json`, `metadata.json`, and `weights.bin` together when serving it to the frontend. The
-`phrase-recognition.mjs` module accepts the model's prediction array and emits
+The trained export is in `frontend/public/recognition-model/`. Keep `model.json`, `metadata.json`, and `weights.bin` together when serving it to the frontend. The
+`frontend/src/lib/phrase-recognition.mjs` module accepts the model's prediction array and emits
 one phrase after it observes a supported sequence of stable labels. The
 current demo sequences are `hello → world` and `this is → test`. Test the
 idle camera and ordinary motion before enabling playback, especially if the
 model was trained without a background class.
 
-Install the packages in `requirements.txt`, configure `GEMINI_API_KEY` and
+From `backend/`, install the packages in `requirements.txt`, configure `GEMINI_API_KEY` and
 `ELEVENLABS_API_KEY` in `.env`, and run `python phrase_api.py` for local
 development. The server listens on `127.0.0.1:8787`.
 
@@ -61,23 +61,39 @@ Initially, `[language processing]` should be a **pass-through** (it returns the 
 
 ## Project files
 
-The actual repository may have fewer files while features are being built. **Check the folder in GitHub for the source of truth.** The following is the intended structure; don't assume every file exists yet.
-
-```text
-SignWave/
-├── main.py                 # Starts the app; currently may take typed input
-├── speech.py               # Group B: ElevenLabs text-to-speech
-├── language_processing.py  # Planned: cleanup/translation; pass-through first
-├── recognition.py          # Planned: Group A camera/recognition integration
-├── requirements.txt        # Python packages to install
-├── .env.example            # Example configuration WITHOUT real secrets
-├── .env                    # Local secrets (never commit)
-├── .gitignore              # Stops secrets, virtual environment, outputs from being committed
-├── README.md               # This guide
-└── .venv/                  # Local Python environment (never commit)
-```
+| Path | Contents |
+|---|---|
+| `frontend/` | Base44 web app, camera UI, recognition logic, and trained model assets. |
+| `backend/` | Python phrase API, language cleanup, speech generation, CLI, and example configuration. |
+| `README.md` | Project setup and demo instructions. |
 
 Generated `output.mp3` and any other audio files should not be committed unless the team deliberately chooses to include safe example recordings.
+
+## Frontend development
+
+The Base44 export uses React, TanStack Start, and Vite. The app routes live in
+`frontend/src/routes/`, including the communication screen at
+`frontend/src/routes/communicate.jsx`. The Cloudflare Worker entry is
+`frontend/src/server.js`, and the build emits `dist/client` and `dist/server`
+within `frontend/`.
+
+From the repository root, run these commands with Node.js, npm, and the Base44
+CLI installed:
+
+```powershell
+cd frontend
+npm ci
+base44 login
+base44 link
+base44 dev
+```
+
+Sign in once per machine and link the frontend to SignWave once per local
+checkout. Run `npm run build` from `frontend/` for a production build.
+
+The imported camera screen still uses its sample-sign demo and browser speech.
+Wiring live camera predictions to the included model and the Python speech API
+is a separate integration step.
 
 ## First-time setup on Windows (for every teammate)
 
@@ -101,7 +117,7 @@ If that fails, try `py --version`. Install Python from [python.org](https://www.
 
 ### 3. Create your own virtual environment
 
-Run these commands **inside the SignWave folder**:
+Run these commands **inside the `backend/` folder**:
 
 ```powershell
 python -m venv .venv
