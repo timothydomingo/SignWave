@@ -1,86 +1,201 @@
 # SignWave
 
-SignWave is a Group B hackathon prototype. Right now you type text and the program speaks it. Sign-language input will come later.
+**Hack The Nest 2026 | Accessible sign-to-speech prototype**
 
-`process_text` in `main.py` is a placeholder. It returns your text unchanged. Later it can clean up and translate text (for example with Gemini). It does not call a language model today.
+SignWave is a hackathon prototype that recognizes a **limited set of supported signs or gestures**, displays the confirmed message as a caption, and converts the message into speech using ElevenLabs. The goal is to let a person on a second device hear the message during a call.
 
-Speech uses the ElevenLabs Python SDK.
+> **Scope:** This is a limited-vocabulary prototype, **not a complete or certified American Sign Language (ASL) interpreter**. Hand tracking and gesture recognition alone do not translate continuous ASL.
 
-## Prerequisites
+## How the project works
 
-Python 3 is installed on this computer. The launcher that worked is `py -3`, and the version is **Python 3.14.5**. `py` and `python` also reported 3.14.5.
-
-## Open the project in Cursor
-
-1. Open Cursor.
-2. Choose **File > Open Folder**.
-3. Select this folder: `C:\Users\timoe\OneDrive\Desktop\Projects\SignWave`.
-
-## Create the virtual environment
-
-A `.venv` folder is already in the project. If you need to create it again, open **Terminal > New Terminal** in Cursor. That terminal is PowerShell. Then run:
-
-```powershell
-py -3 -m venv .venv
+```text
+Camera → Group A recognition → confirmed text event
+                                   ↓
+                         [language processing]
+                                   ↓
+                            ElevenLabs TTS
+                                   ↓
+                  audio file / playback → call audio
 ```
 
-## Install the requirements
+Initially, `[language processing]` should be a **pass-through** (it returns the same text). Later, Group B can add optional Gemini cleanup and translation without changing the ElevenLabs module. Do not automatically speak guesses or ambiguous recognition results.
 
-In that same PowerShell terminal, from the project folder, run:
+## Team responsibilities
+
+| Team | Responsibility | Initial success criterion |
+|---|---|---|
+| **Group A — Recognition** | Camera, supported-sign recognition, stable confirmed text events | One intended sign produces one confirmed event; unsupported gestures produce none |
+| **Group B — Speech & call** | Captions, ElevenLabs text-to-speech, ordered playback, call audio routing; optional language cleanup/translation later | Typed test text can be heard from a second device |
+
+## Project files
+
+The actual repository may have fewer files while features are being built. **Check the folder in GitHub for the source of truth.** The following is the intended structure; don't assume every file exists yet.
+
+```text
+SignWave/
+├── main.py                 # Starts the app; currently may take typed input
+├── speech.py               # Group B: ElevenLabs text-to-speech
+├── language_processing.py  # Planned: cleanup/translation; pass-through first
+├── recognition.py          # Planned: Group A camera/recognition integration
+├── requirements.txt        # Python packages to install
+├── .env.example            # Example configuration WITHOUT real secrets
+├── .env                    # Local secrets (never commit)
+├── .gitignore              # Stops secrets, virtual environment, outputs from being committed
+├── README.md               # This guide
+└── .venv/                  # Local Python environment (never commit)
+```
+
+Generated `output.mp3` and any other audio files should not be committed unless the team deliberately chooses to include safe example recordings.
+
+## First-time setup on Windows (for every teammate)
+
+### 1. Get the project
+
+1. Install [GitHub Desktop](https://desktop.github.com/) and sign in.
+2. Accept the repository collaboration invitation if it is private.
+3. On the repository webpage select **Code → Open with GitHub Desktop**, or in GitHub Desktop use **File → Clone repository**.
+4. Choose **any folder you own**. It does **not** need to match the original developer's `C:\Users\...` path.
+5. Open the downloaded folder in **Cursor** (**File → Open Folder**).
+
+### 2. Check Python
+
+In Cursor select **Terminal → New Terminal**, then run:
 
 ```powershell
+python --version
+```
+
+If that fails, try `py --version`. Install Python from [python.org](https://www.python.org/downloads/) if neither is available. Ask a teammate if the project requires a particular Python version; use the same supported version across the team where possible.
+
+### 3. Create your own virtual environment
+
+Run these commands **inside the SignWave folder**:
+
+```powershell
+python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-This installs only `elevenlabs` and `python-dotenv`.
+If `python` is unavailable but `py` works, use `py -m venv .venv` for the first command. Calling `\.venv\Scripts\python.exe` directly avoids PowerShell activation-policy problems.
 
-## Run the program
+### 4. Configure ElevenLabs only if you're running speech
+
+1. Sign in to [ElevenLabs](https://elevenlabs.io/) and create an API key in your account's API key settings, using only permissions you need.
+2. Copy `.env.example` to a new file named `.env`. You can run:
+
+   ```powershell
+   Copy-Item .env.example .env
+   ```
+
+3. Open `.env` in Cursor and put your key after the equals sign:
+
+   ```dotenv
+   ELEVENLABS_API_KEY=your_key_goes_here
+   ```
+
+4. Save the file. **Never post the real key in chat, commit it to GitHub, or share it in screenshots.** Each developer who runs speech needs an authorized key; ask the owner how the team will handle access.
+5. If `speech.py` requires other settings (such as a voice ID or model ID), follow `.env.example` or ask Group B for the current values. The available settings depend on the code actually committed.
+
+**Security check before your first commit:** `.gitignore` should include at least:
+
+```gitignore
+.env
+.venv/
+__pycache__/
+*.pyc
+output.mp3
+```
+
+If `.env` was committed before `.gitignore` was added, merely ignoring it later is not enough: remove it from tracking and **revoke/rotate the exposed API key**.
+
+### 5. Run the first test
 
 ```powershell
 .\.venv\Scripts\python.exe main.py
 ```
 
-Type a sentence and press Enter. The program prints what you typed, then saves speech as `output.mp3` in the project folder (the current working directory). Type `quit` or `Quit` to exit. If you press Enter with no text, it asks again. If speech fails, it prints the error and lets you try again.
+If the current `main.py` accepts typed text, enter a short sample such as `Hello from SignWave!`. Depending on the current implementation, it may produce `output.mp3` rather than automatically playing audio. Confirm the output before moving to live recognition.
 
-## Put your ElevenLabs API key in `.env`
+**If a package is missing:** first rerun the `pip install -r requirements.txt` command with the `.venv` Python. If a dependency isn't listed in `requirements.txt`, tell the developer who added it to update that file and commit the fix.
 
-1. Open the local file named `.env` in the project folder. Do not put the key in `.env.example`.
-2. Set this line to your key:
+## How Group A sends text to Group B
 
-```text
-ELEVENLABS_API_KEY=
+**Agree on this interface before connecting modules.** A sample **Python dictionary** event:
+
+```python
+{
+    "version": 1,
+    "event_id": "session1-0001",
+    "label": "ILoveYou",
+    "text": "I love you.",
+    "score": 0.94,
+    "final": True,
+}
 ```
 
-There should be no spaces around the key. Example shape only: `ELEVENLABS_API_KEY=your_key_here`.
+This is sample data, **not an actual recognition result**. Group A should emit an event **only after a supported sign has been recognized consistently**. `score` is an estimated recognition score, not proof of translation accuracy.
 
-Do not paste the key into chat. Do not commit `.env`. `.env.example` is only a template and contains no key. `.gitignore` already excludes `.env`.
+- `event_id`: unique per accepted occurrence so duplicates can be ignored.
+- `text`: confirmed, approved wording for the caption and voice.
+- `final`: only `True` events may be sent to speech.
+- `label`: supported recognition category; Group B should not guess the meaning from a label.
+- `score`: useful for debugging and evaluation.
 
-Create an API key in the ElevenLabs dashboard. The official setup guide is here: https://elevenlabs.io/docs/eleven-api/guides/cookbooks/text-to-speech/
+**Group A owns** recognition and event creation. **Group B owns** queued playback and the `speak_event(event)` interface (to be added if not present). In the final demo, use a Python `queue.Queue` between recognition and speech so ElevenLabs requests or audio playback do not block the camera loop. Do not play duplicate or overlapping events. Show an error while preserving captions if ElevenLabs is unavailable.
 
-## Optional voice and model
+## Adding grammar cleanup and translation later
 
-You can add these lines to `.env` if you want a different voice or model. If you leave them out, the program uses the defaults below.
+The intended processing sequence is:
 
 ```text
-ELEVENLABS_VOICE_ID=JBFqnCBsd6RMkjVDRZzb
-ELEVENLABS_MODEL_ID=eleven_multilingual_v2
+confirmed recognition text
+     → cleanup / meaning-to-English (optional)
+     → translation to selected language (optional)
+     → ElevenLabs voice for that language
 ```
 
-- Default voice: **George**, ID `JBFqnCBsd6RMkjVDRZzb`, from the official quickstart: https://elevenlabs.io/docs/eleven-api/guides/cookbooks/text-to-speech/
-- Default model: `eleven_multilingual_v2`, from the models page: https://elevenlabs.io/docs/overview/models
+Start with a function such as `process_text(text)` that returns the input unchanged. Later, Group B can replace its internals with a Gemini API call or a verified fixed mapping. Keep it as a separate module so `speech.py` still receives plain finalized text.
 
-ElevenLabs says its older default voices, including George, are only for accounts created before March 2026 and expire on December 31, 2026. The documented replacement for George is **Eldrin - Crisp British Baritone**, ID `6WwXjDDEMyNmFG95zycZ`: https://elevenlabs.io/docs/help-center/product/voices/my-voices/what-are-default-voices
+**Meaning safeguards:** ASL is a language with its own grammar. A list of hand labels cannot automatically be turned into a faithful ASL translation. Keep supported vocabulary limited, do not invent missing meaning, flag ambiguity rather than guessing, and allow the user to correct uncertain text. Begin with English speech; add one additional language only after the English pathway works.
 
-If George does not work on your account, set `ELEVENLABS_VOICE_ID=6WwXjDDEMyNmFG95zycZ` in `.env`.
+## Call audio (later milestone)
 
-## Files
+For Windows, [VB-CABLE](https://vb-audio.com/Cable/) can route the Python player's **output to `CABLE Input`** into the call app's **microphone set to `CABLE Output`**. Test with another device and headphones to prevent echo. The call platform (Google Meet, Zoom, etc.) is **not selected yet**. Do not assume a generated MP3 is already audible to call participants.
 
-- `main.py` — asks you for text in a loop, shows what you typed, runs `process_text`, then speaks it.
-- `speech.py` — calls ElevenLabs and writes `output.mp3`.
-- `requirements.txt` — the two Python packages to install.
-- `.env` — your local API key. Not for sharing.
-- `.env.example` — a template that shows the variable names. No secrets.
-- `.gitignore` — tells git to skip `.env`, `.venv/`, `__pycache__/`, and mp3 files.
-- `.venv/` — the local Python environment. Already created.
+## Collaborating safely with GitHub Desktop
 
-`output.mp3` is created in the project folder when speech succeeds.
+1. **Before editing:** click **Fetch origin**, then **Pull origin** if updates are available.
+2. **Work in your assigned module:** Group A on recognition; Group B on speech and language processing. Coordinate edits to `main.py` and `requirements.txt`.
+3. **Review your changed files** in GitHub Desktop. Never commit `.env`, `.venv`, generated audio, credentials, or personal files.
+4. Write a clear commit summary such as `Add ElevenLabs speech test`, then **Commit** and **Push origin**.
+5. Ask teammates to **Pull origin** before trying your update. For simultaneous work on the same files, create separate branches and use pull requests, or coordinate with the team first.
+
+**Cloning recreates shared source files, not local virtual environments or secret keys.** Everyone follows the setup steps above on their own computer.
+
+## Troubleshooting
+
+| Symptom | What to try |
+|---|---|
+| `ModuleNotFoundError: No module named 'dotenv'` | Install dependencies with `.\.venv\Scripts\python.exe -m pip install -r requirements.txt` and run with that same Python. `python-dotenv` must be listed. |
+| `ModuleNotFoundError: No module named 'elevenlabs'` | Same as above; confirm `elevenlabs` is listed in `requirements.txt`. |
+| Missing ElevenLabs API key | Confirm `.env` exists next to the project files, has the correct `ELEVENLABS_API_KEY` name, and the code loads it. Don't display the key when debugging. |
+| ElevenLabs authorization/quota error | Verify the key has Text-to-Speech access and the account has available usage. Do not upload your key for troubleshooting. |
+| MP3 generated but no audio in call | The file output works; next configure playback and the virtual audio device, then test from another device. |
+| Changes not showing for a teammate | Verify you committed **and pushed**, and they fetched **and pulled**. |
+
+## Hack The Nest demo checklist
+
+- [ ] Sign recognized reliably from a small, **verified** vocabulary
+- [ ] One accepted sign produces one caption and one spoken message
+- [ ] Typed text can independently produce ElevenLabs audio
+- [ ] Audio reaches a second device (once call routing is ready)
+- [ ] No API keys in GitHub
+- [ ] All teammates can explain their own code
+- [ ] Public GitHub repository ready for final Devpost submission
+- [ ] Demo video is **three minutes or less**
+
+**Event schedule (Eastern, Nov 15, 2026):** Draft submission at **12:00 AM**, final Devpost submission at **12:00 PM**, demo judging at **1:15 PM**. Confirm updates in the official event app or Discord.
+
+---
+
+**For teammates:** If setup fails, share the error message, the command you ran, and your Python version. **Never share your `.env` file or API key.**
