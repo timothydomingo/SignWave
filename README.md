@@ -9,7 +9,7 @@ SignWave is a hackathon prototype that recognizes a **limited set of supported s
 ## Browser recognition and phrase audio
 
 The browser runs the Teachable Machine TensorFlow.js model on webcam frames.
-Keep `model.json`, `metadata.json`, and `weights.bin` together. The
+The trained export is in `recognition-model/`. Keep `model.json`, `metadata.json`, and `weights.bin` together when serving it to the frontend. The
 `phrase-recognition.mjs` module accepts the model's prediction array and emits
 one phrase after it observes a supported sequence of stable labels. The
 current demo sequences are `hello → world` and `this is → test`. Test the
