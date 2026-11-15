@@ -1,0 +1,188 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* One typeface, loaded from the workspace library: a Swiss grotesque with far
+   more character than the usual web-app defaults. */
+
+@font-face {
+  font-family: "Neue Haas Grotesk Display Pro";
+  src: url("https://media.base44.com/files/public/builder-assets/wix-fonts/neue-haas-grotesk-400-normal.woff2")
+    format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Neue Haas Grotesk Display Pro";
+  src: url("https://media.base44.com/files/public/builder-assets/wix-fonts/neue-haas-grotesk-500-normal.woff2")
+    format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Neue Haas Grotesk Display Pro";
+  src: url("https://media.base44.com/files/public/builder-assets/wix-fonts/neue-haas-grotesk-700-normal.woff2")
+    format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+
+    --background: 0 0% 100%;
+    --foreground: 212 58% 22%;
+    --card: 0 0% 100%;
+    --card-foreground: 212 58% 22%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 212 58% 22%;
+    --primary: 212 58% 22%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 212 34% 96%;
+    --secondary-foreground: 212 58% 22%;
+    --muted: 212 28% 96%;
+    --muted-foreground: 212 22% 44%;
+    --accent: 212 34% 94%;
+    --accent-foreground: 212 58% 22%;
+    --destructive: 0 62% 43%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 212 22% 89%;
+    --input: 212 20% 84%;
+    --ring: 212 58% 22%;
+
+    --radius: 0.75rem;
+
+    --font-display: "Neue Haas Grotesk Display Pro", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    --font-heading: "Neue Haas Grotesk Display Pro", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    --font-body: "Neue Haas Grotesk Display Pro", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 212 58% 22%;
+    --sidebar-primary: 212 58% 22%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 212 34% 96%;
+    --sidebar-accent-foreground: 212 58% 22%;
+    --sidebar-border: 212 22% 89%;
+    --sidebar-ring: 212 58% 22%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-background font-body text-foreground antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-display tracking-tight;
+  }
+
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+  }
+}
+
+/* Opening sequence: the sine wave draws itself, then a navy wave rises from the
+   bottom and sweeps over the screen, revealing the translator. ~2 seconds. */
+
+@keyframes sw-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes sw-lift {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes sw-sweep {
+  from {
+    transform: translate3d(0, 100%, 0);
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes sw-fade {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.sw-splash-logo {
+  animation: sw-pop 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both;
+}
+
+.sw-splash-title {
+  animation: sw-lift 0.45s cubic-bezier(0.22, 1, 0.36, 1) 0.34s both;
+}
+
+.sw-splash-tagline {
+  animation: sw-lift 0.45s cubic-bezier(0.22, 1, 0.36, 1) 0.48s both;
+}
+
+/* The logo holds on screen for a beat, then the wave sweeps up and reveals the app. */
+.sw-splash-wave {
+  animation: sw-sweep 0.82s cubic-bezier(0.7, 0, 0.3, 1) 2.3s both;
+}
+
+.sw-splash-wave--late {
+  animation-delay: 2.42s;
+}
+
+.sw-splash {
+  animation: sw-fade 0.34s ease-in 3.1s forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sw-splash {
+    display: none !important;
+  }
+
+  .sw-splash-logo,
+  .sw-splash-title,
+  .sw-splash-tagline,
+  .sw-splash-wave {
+    animation: none !important;
+  }
+}
