@@ -1,276 +1,330 @@
 # SignWave
 
-**Hack The Nest 2026 | Accessible sign-to-speech prototype**
+**Accessible sign-to-speech prototype · Hack The Nest 2026**
 
-SignWave is a hackathon prototype that recognizes a **limited set of supported signs or gestures**, displays the confirmed message as a caption, and converts the message into speech using ElevenLabs. The web demo is designed to play the recognized phrase as audio.
+SignWave is an experimental communication tool that uses a webcam and a trained image-classification model to recognize a small set of supported sign sequences, display the resulting phrase, and speak it aloud. The project combines a React web interface, browser-based recognition, optional Gemini text cleanup, and ElevenLabs text-to-speech.
 
-> **Scope:** This is a limited-vocabulary prototype, **not a complete or certified American Sign Language (ASL) interpreter**. Hand tracking and gesture recognition alone do not translate continuous ASL.
+> **Important scope note:** SignWave is not a complete ASL translator or a certified interpretation system. It recognizes a limited, predefined vocabulary and phrase set. ASL has its own grammar and linguistic structure; recognizing isolated hand poses is not equivalent to understanding continuous ASL. Do not rely on this prototype for medical, legal, emergency, or other high-stakes communication.
 
-## Browser recognition and phrase audio
+## What it does
 
-The browser runs the Teachable Machine TensorFlow.js model on webcam frames.
-The trained export is in `frontend/public/recognition-model/`. Keep `model.json`, `metadata.json`, and `weights.bin` together when serving it to the frontend. The
-`frontend/src/lib/phrase-recognition.mjs` module accepts the model's prediction array and emits
-one phrase after it observes a supported sequence of stable labels. The
-current demo sequences are `hello → world` and `this is → test`. Test the
-idle camera and ordinary motion before enabling playback, especially if the
-model was trained without a background class.
+- **Live camera input:** Requests webcam access in the browser and runs the included Teachable Machine model on video frames.
+- **Stable phrase detection:** Requires confident, repeated predictions before accepting a supported sequence, reducing accidental triggers.
+- **Captions:** Displays the phrase recognized by the model.
+- **Speech output:** The web app can use the browser's built-in speech synthesis. A separate Python service can generate MP3 audio with ElevenLabs for the supported live phrases.
+- **Manual text and sample demo:** Lets users test the communication flow without relying on live recognition.
+- **Optional text cleanup:** The Python backend can use Gemini to turn already-recognized sign-derived text into more natural English. If cleanup is unavailable or uncertain, it falls back to the original text.
 
-From `backend/`, install the packages in `requirements.txt`, configure `GEMINI_API_KEY` and
-`ELEVENLABS_API_KEY` in `.env`, and run `python phrase_api.py` for local
-development. The server listens on `127.0.0.1:8787`.
+## Project status and current limitations
 
-- `GET /health` checks that the server is running.
-- `POST /api/phrases` accepts JSON such as `{"text":"hello world"}`.
-  Optionally include `"voice":"male"` or `"voice":"female"`.
-- The response includes `text`, `cleanupApplied`, `audioBase64`, and
-  `mimeType`. The caption is the text actually passed to speech.
-- Set `SIGNWAVE_FRONTEND_ORIGIN` to the exact browser origin, including
-  scheme and port when applicable, to allow cross-origin requests during local
-  development.
+| Component | Current behavior |
+|---|---|
+| Web interface | React app built with TanStack Start, Vite, and the Base44 tooling |
+| Camera recognition | Loads the committed Teachable Machine model from `frontend/public/recognition-model/` |
+| Live phrase vocabulary | The recognizer currently emits `hello world` and `this is test` from supported two-label sequences |
+| Web demo/sample mode | Feeds sample glosses into the interface so the UI can be tested without a camera |
+| Default web speech | Uses the browser's Web Speech API; available voices depend on the device and browser |
+| Hosted live speech | The server function can call the separately hosted Python speech API when Base44 secrets are configured |
+| Local speech development | The frontend can call the local Python API when `VITE_SIGNWAVE_LOCAL_SPEECH=true` is set in development |
+| Python CLI/API | Provides standalone text cleanup and ElevenLabs speech generation |
 
-Call the endpoint when each phrase is recognized. Keep the recognition loop
-running while the request is pending and queue playback in phrase order.
-This API returns one finished MP3 per phrase. It does not stream MP3 chunks
-over HTTP. Confirm the timing on the demo network before promising that
-speech will overlap the next phrase. If Gemini cleanup fails, the existing
-language module passes the recognized text through to speech.
+The web app's general text-processing/demo flow and the Python backend are separate paths. The Python API does not automatically power every web-app action. In particular, the browser's default speech button uses device speech synthesis, while the live recognized-phrase path can use the Python MP3 service.
 
-
-## How the project works
+## Architecture
 
 ```text
-Camera → Group A recognition → confirmed text event
-                                   ↓
-                         [language processing]
-                                   ↓
-                            ElevenLabs TTS
-                                   ↓
-                  audio file / playback → call audio
+                         WEB APPLICATION
+ Webcam
+   │
+   ▼
+ Teachable Machine model (TensorFlow.js)
+   │ predictions
+   ▼
+ Stable phrase recognizer
+   │ confirmed supported phrase
+   ▼
+ Caption ────────────────────────────────┐
+   │                                     │
+   ▼                                     ▼
+Live speech request                 Browser speech
+   │                                 (default UI path)
+   ▼
+TanStack server function
+   │ authenticated HTTPS request
+   ▼
+Python phrase API
+   │
+   ├── Gemini cleanup (optional)
+   │
+   ▼
+ElevenLabs text-to-speech
+   │
+   ▼
+MP3 response → browser audio playback
+
+
+                         PYTHON TOOLS
+ Typed text → Gemini cleanup (optional) → ElevenLabs → output.mp3
+                                      └→ Streamlit Voice Studio
 ```
 
-Initially, `[language processing]` should be a **pass-through** (it returns the same text). Later, Group B can add optional Gemini cleanup and translation without changing the ElevenLabs module. Do not automatically speak guesses or ambiguous recognition results.
+## Repository layout
 
-## Team responsibilities
+```text
+SignWave/
+├── backend/
+│   ├── phrase_api.py              # HTTP API for recognized phrases
+│   ├── language_processing.py     # Optional Gemini English cleanup
+│   ├── speech.py                  # ElevenLabs audio generation
+│   ├── main.py                    # Interactive text-to-speech CLI
+│   ├── voice_studio.py            # Streamlit voice settings and preview tool
+│   ├── requirements.txt
+│   └── .env.example
+│
+├── frontend/
+│   ├── public/recognition-model/  # Teachable Machine model files
+│   ├── src/components/           # Camera, studio, controls, and UI
+│   ├── src/hooks/                # Communication and live speech flows
+│   ├── src/lib/                  # Recognition, speech, and server functions
+│   ├── src/routes/               # TanStack Start routes
+│   └── package.json
+│
+└── README.md
+```
 
-| Team | Responsibility | Initial success criterion |
-|---|---|---|
-| **Group A — Recognition** | Camera, supported-sign recognition, stable confirmed text events | One intended sign produces one confirmed event; unsupported gestures produce none |
-| **Group B — Speech & call** | Captions, ElevenLabs text-to-speech, ordered playback, call audio routing; optional language cleanup/translation later | Typed test text can be heard from a second device |
+## Requirements
 
-## Project files
+- Windows, macOS, or Linux
+- Git
+- **Python 3.10+** (use a version supported by the installed dependencies)
+- **Node.js and npm** for the frontend
+- A webcam for live recognition
+- An ElevenLabs API key for Python-generated speech
+- A Gemini API key for optional backend text cleanup
+- Base44 CLI/account access for the Base44-linked frontend workflow
 
-| Path | Contents |
-|---|---|
-| `frontend/` | Base44 web app, camera UI, recognition logic, and trained model assets. |
-| `backend/` | Python phrase API, language cleanup, speech generation, CLI, and example configuration. |
-| `README.md` | Project setup and demo instructions. |
+## Quick start
 
-Generated `output.mp3` and any other audio files should not be committed unless the team deliberately chooses to include safe example recordings.
+### 1. Clone the repository
 
-## Frontend development
+```bash
+git clone https://github.com/timothydomingo/SignWave.git
+cd SignWave
+```
 
-The Base44 export uses React, TanStack Start, and Vite. The app routes live in
-`frontend/src/routes/`, including the communication screen at
-`frontend/src/routes/communicate.jsx`. The Cloudflare Worker entry is
-`frontend/src/server.js`, and the build emits `dist/client` and `dist/server`
-within `frontend/`.
+### 2. Set up the Python backend
 
-From the repository root, run these commands with Node.js, npm, and the Base44
-CLI installed:
+From the repository root:
 
+**Windows PowerShell**
 ```powershell
+cd backend
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+Copy-Item .env.example .env
+```
+
+**macOS / Linux**
+```bash
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+cp .env.example .env
+```
+
+Edit `.env` and add the keys for the services you intend to use:
+
+```dotenv
+ELEVENLABS_API_KEY=your_elevenlabs_api_key
+GEMINI_API_KEY=your_gemini_api_key
+```
+
+- `ELEVENLABS_API_KEY` is required for ElevenLabs speech generation.
+- `GEMINI_API_KEY` is optional. If it is missing or Gemini cleanup fails, the backend uses the original input text.
+- `ELEVENLABS_VOICE_ID`, `ELEVENLABS_MODEL_ID`, and `GEMINI_MODEL` can optionally override defaults. See `backend/.env.example`.
+
+Run the interactive text-to-speech CLI:
+
+```bash
+python main.py
+```
+
+Choose a voice explicitly if desired:
+
+```bash
+python main.py --voice female
+```
+
+The CLI saves generated audio as `output.mp3` in the current working directory.
+
+### 3. Run the Python phrase API (optional)
+
+Keep the terminal in `backend/` and run:
+
+```bash
+python phrase_api.py
+```
+
+By default, the service listens on:
+
+```text
+http://127.0.0.1:8787
+```
+
+Available endpoints:
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/health` | Check whether the service is running |
+| `POST` | `/api/phrases` | Generate speech for a recognized phrase |
+| `OPTIONS` | `/api/phrases` | Browser CORS preflight |
+
+Example request:
+
+```http
+POST /api/phrases
+Content-Type: application/json
+
+{
+  "text": "hello world",
+  "voice": "female"
+}
+```
+
+The `voice` field is optional and accepts `male` or `female`. The response contains:
+
+- `text`: the final caption text sent to speech
+- `cleanupApplied`: whether Gemini cleanup succeeded
+- `audioBase64`: MP3 audio encoded as Base64
+- `mimeType`: `audio/mpeg`
+
+The API accepts text up to 200 characters. The browser recognizer currently emits only its supported phrases, but the API can accept other short text values.
+
+For local browser development, set the exact frontend origin in the backend `.env`, for example:
+
+```dotenv
+SIGNWAVE_FRONTEND_ORIGIN=http://localhost:5173
+```
+
+Then enable the local speech path in the frontend's development environment:
+
+```dotenv
+VITE_SIGNWAVE_LOCAL_SPEECH=true
+```
+
+Restart both development servers after changing environment variables. The local speech option is development-only and calls `http://127.0.0.1:8787/api/phrases`.
+
+**Deployment security:** Do not expose the Python speech service publicly without HTTPS and authentication. When binding it to a non-localhost interface, configure `SIGNWAVE_SPEECH_TOKEN`. The hosted frontend expects `SIGNWAVE_SPEECH_URL` and `SIGNWAVE_SPEECH_TOKEN` to be stored as Base44 server secrets. Use an HTTPS endpoint; never put API keys or the speech token in frontend code.
+
+### 4. Run the web frontend
+
+Open a second terminal:
+
+```bash
 cd frontend
 npm ci
+```
+
+For a Base44-linked development environment, authenticate and link the project:
+
+```bash
 base44 login
 base44 link
 base44 dev
 ```
 
-Sign in once per machine and link the frontend to SignWave once per local
-checkout. Run `npm run build` from `frontend/` for a production build.
+Build the frontend:
 
-### Try live webcam-to-speech
-
-1. For a local test, create `frontend/.env.local` with
-   `VITE_SIGNWAVE_LOCAL_SPEECH=true`. In `backend/.env`, set
-   `SIGNWAVE_FRONTEND_ORIGIN` to the exact URL printed by the frontend dev
-   server. Restart the frontend after changing its environment.
-2. Set the Gemini and ElevenLabs keys in `backend/.env` and run
-   `python phrase_api.py` from `backend/`. The local frontend uses
-   `http://127.0.0.1:8787/api/phrases`.
-3. Open the communication screen, turn on the camera, and wait for **Live
-   recognition · English**. Sign `hello → world` or `this is → test`, holding
-   each sign briefly. The caption appears first and the MP3 plays when ready.
-   The runtime loads from jsDelivr, and model inference stays in the browser.
-
-The sample-sign and typed-text paths still use browser speech. The trained
-model supports two English demo phrases. Check idle-camera behavior before
-presenting because this model export has no background class.
-
-### Configure hosted live speech
-
-Run the Python API behind your host's HTTPS ingress. Set
-`SIGNWAVE_API_HOST=0.0.0.0`, use the `PORT` supplied by the host, and configure
-`SIGNWAVE_SPEECH_TOKEN`, `GEMINI_API_KEY`, and `ELEVENLABS_API_KEY` on that
-service. Apply request rate limits at the ingress before public use.
-
-In Base44 Secrets, set `SIGNWAVE_SPEECH_URL` to the HTTPS URL ending in
-`/api/phrases` and `SIGNWAVE_SPEECH_TOKEN` to the same server token.
-Sign in to the published SignWave app before using live cloud speech. The
-Base44 server function authenticates the caller and forwards completed phrases
-with the token. The model and its asset files must be included in the Base44
-deployment.
-
-## First-time setup on Windows (for every teammate)
-
-### 1. Get the project
-
-1. Install [GitHub Desktop](https://desktop.github.com/) and sign in.
-2. Accept the repository collaboration invitation if it is private.
-3. On the repository webpage select **Code → Open with GitHub Desktop**, or in GitHub Desktop use **File → Clone repository**.
-4. Choose **any folder you own**. It does **not** need to match the original developer's `C:\Users\...` path.
-5. Open the downloaded folder in **Cursor** (**File → Open Folder**).
-
-### 2. Check Python
-
-In Cursor select **Terminal → New Terminal**, then run:
-
-```powershell
-python --version
+```bash
+npm run build
 ```
 
-If that fails, try `py --version`. Install Python from [python.org](https://www.python.org/downloads/) if neither is available. Ask a teammate if the project requires a particular Python version; use the same supported version across the team where possible.
+Other available scripts:
 
-### 3. Create your own virtual environment
-
-Run these commands **inside the `backend/` folder**:
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+```bash
+npm run lint
+npm run preview
 ```
 
-If `python` is unavailable but `py` works, use `py -m venv .venv` for the first command. Calling `\.venv\Scripts\python.exe` directly avoids PowerShell activation-policy problems.
+The frontend uses React 19, TanStack Start/Router, Vite, and the Base44 Vite plugin. Follow the team's Base44 project setup if the CLI asks you to select or link an application.
 
-### 4. Configure ElevenLabs only if you're running speech
+### 5. Test live recognition
 
-1. Sign in to [ElevenLabs](https://elevenlabs.io/) and create an API key in your account's API key settings, using only permissions you need.
-2. Copy `.env.example` to a new file named `.env`. You can run:
+1. Open the running web app in a browser that supports webcam access.
+2. Allow camera permission.
+3. Wait for the live recognition status to appear.
+4. Present the supported signs in the trained model's expected conditions.
+5. The recognizer requires a high-confidence prediction, a margin over the runner-up class, and a stable sequence before accepting a label.
+6. The current phrase map recognizes these sequences:
+   - `hello` → `world` = **hello world**
+   - `this is` → `test` = **this is test**
+7. Check the caption first, then verify speech output.
 
-   ```powershell
-   Copy-Item .env.example .env
-   ```
+The model files must remain together in `frontend/public/recognition-model/` (including `model.json`, `metadata.json`, and the referenced weight file).
 
-3. Open `.env` in Cursor and put your key after the equals sign:
+## Python Voice Studio
 
-   ```dotenv
-   ELEVENLABS_API_KEY=your_key_goes_here
-   ```
+The backend includes a Streamlit tool for previewing voice settings:
 
-4. Save the file. **Never post the real key in chat, commit it to GitHub, or share it in screenshots.** Each developer who runs speech needs an authorized key; ask the owner how the team will handle access.
-5. If `speech.py` requires other settings (such as a voice ID or model ID), follow `.env.example` or ask Group B for the current values. The available settings depend on the code actually committed.
-
-**Security check before your first commit:** `.gitignore` should include at least:
-
-```gitignore
-.env
-.venv/
-__pycache__/
-*.pyc
-output.mp3
+```bash
+cd backend
+python -m streamlit run voice_studio.py
 ```
 
-If `.env` was committed before `.gitignore` was added, merely ignoring it later is not enough: remove it from tracking and **revoke/rotate the exposed API key**.
+The tool can preview the configured ElevenLabs voice, adjust supported voice settings for the selected model, and save local preferences to `voice_settings.local.json`. That file is intentionally ignored by Git.
 
-### 5. Run the first test
+## Team integration contract
 
-```powershell
-.\.venv\Scripts\python.exe main.py
-```
+The frontend's live recognizer currently emits finalized phrase strings. If the recognition vocabulary or event interface changes, coordinate the change across:
 
-If the current `main.py` accepts typed text, enter a short sample such as `Hello from SignWave!`. Depending on the current implementation, it may produce `output.mp3` rather than automatically playing audio. Confirm the output before moving to live recognition.
+- `frontend/src/lib/phrase-recognition.mjs` — supported labels, phrase mapping, and confidence/stability thresholds
+- `frontend/src/hooks/useCommunicationSession.js` — routes confirmed phrases into the live speech queue
+- `frontend/src/hooks/useLivePhraseSpeech.js` — serializes speech requests and audio playback
+- `frontend/src/lib/server-fns.js` — validates the supported live phrases and calls the hosted speech API
+- `backend/phrase_api.py` — validates requests and returns caption/audio data
 
-**If a package is missing:** first rerun the `pip install -r requirements.txt` command with the `.venv` Python. If a dependency isn't listed in `requirements.txt`, tell the developer who added it to update that file and commit the fix.
+The server function currently validates `hello world` and `this is test`. Add a phrase to both the recognizer and server-function validation before expecting it to work through hosted live speech.
 
-## How Group A sends text to Group B
+Keep recognition and audio generation decoupled: the camera loop should not wait for an audio request to finish. Queue confirmed phrases, avoid duplicate triggers, and keep the caption visible if speech generation fails.
 
-**Agree on this interface before connecting modules.** A sample **Python dictionary** event:
+## Safety, privacy, and responsible use
 
-```python
-{
-    "version": 1,
-    "event_id": "session1-0001",
-    "label": "ILoveYou",
-    "text": "I love you.",
-    "score": 0.94,
-    "final": True,
-}
-```
-
-This is sample data, **not an actual recognition result**. Group A should emit an event **only after a supported sign has been recognized consistently**. `score` is an estimated recognition score, not proof of translation accuracy.
-
-- `event_id`: unique per accepted occurrence so duplicates can be ignored.
-- `text`: confirmed, approved wording for the caption and voice.
-- `final`: only `True` events may be sent to speech.
-- `label`: supported recognition category; Group B should not guess the meaning from a label.
-- `score`: useful for debugging and evaluation.
-
-**Group A owns** recognition and event creation. **Group B owns** queued playback and the `speak_event(event)` interface (to be added if not present). In the final demo, use a Python `queue.Queue` between recognition and speech so ElevenLabs requests or audio playback do not block the camera loop. Do not play duplicate or overlapping events. Show an error while preserving captions if ElevenLabs is unavailable.
-
-## Adding grammar cleanup and translation later
-
-The intended processing sequence is:
-
-```text
-confirmed recognition text
-     → cleanup / meaning-to-English (optional)
-     → translation to selected language (optional)
-     → ElevenLabs voice for that language
-```
-
-Start with a function such as `process_text(text)` that returns the input unchanged. Later, Group B can replace its internals with a Gemini API call or a verified fixed mapping. Keep it as a separate module so `speech.py` still receives plain finalized text.
-
-**Meaning safeguards:** ASL is a language with its own grammar. A list of hand labels cannot automatically be turned into a faithful ASL translation. Keep supported vocabulary limited, do not invent missing meaning, flag ambiguity rather than guessing, and allow the user to correct uncertain text. Begin with English speech; add one additional language only after the English pathway works.
-
-## Call audio (later milestone)
-
-For Windows, [VB-CABLE](https://vb-audio.com/Cable/) can route the Python player's **output to `CABLE Input`** into the call app's **microphone set to `CABLE Output`**. Test with another device and headphones to prevent echo. The call platform (Google Meet, Zoom, etc.) is **not selected yet**. Do not assume a generated MP3 is already audible to call participants.
-
-## Collaborating safely with GitHub Desktop
-
-1. **Before editing:** click **Fetch origin**, then **Pull origin** if updates are available.
-2. **Work in your assigned module:** Group A on recognition; Group B on speech and language processing. Coordinate edits to `main.py` and `requirements.txt`.
-3. **Review your changed files** in GitHub Desktop. Never commit `.env`, `.venv`, generated audio, credentials, or personal files.
-4. Write a clear commit summary such as `Add ElevenLabs speech test`, then **Commit** and **Push origin**.
-5. Ask teammates to **Pull origin** before trying your update. For simultaneous work on the same files, create separate branches and use pull requests, or coordinate with the team first.
-
-**Cloning recreates shared source files, not local virtual environments or secret keys.** Everyone follows the setup steps above on their own computer.
+- Camera access is requested by the browser and can be stopped by the user.
+- The camera stream is used for in-browser model prediction; do not assume that this means the whole application has been independently privacy-audited.
+- Do not commit `.env`, API keys, access tokens, local virtual environments, generated audio, or personal files.
+- Keep secrets on the server. Use Base44 Secrets for hosted speech credentials.
+- Do not treat model confidence as proof that a sign was understood correctly.
+- Do not describe the project as a full ASL translator. Clearly communicate the limited supported vocabulary and provide a way to correct or confirm recognized text.
+- Test with varied lighting, backgrounds, signing speeds, camera positions, and users before making performance claims.
 
 ## Troubleshooting
 
-| Symptom | What to try |
+| Issue | What to check |
 |---|---|
-| `ModuleNotFoundError: No module named 'dotenv'` | Install dependencies with `.\.venv\Scripts\python.exe -m pip install -r requirements.txt` and run with that same Python. `python-dotenv` must be listed. |
-| `ModuleNotFoundError: No module named 'elevenlabs'` | Same as above; confirm `elevenlabs` is listed in `requirements.txt`. |
-| Missing ElevenLabs API key | Confirm `.env` exists next to the project files, has the correct `ELEVENLABS_API_KEY` name, and the code loads it. Don't display the key when debugging. |
-| ElevenLabs authorization/quota error | Verify the key has Text-to-Speech access and the account has available usage. Do not upload your key for troubleshooting. |
-| MP3 generated but no audio in call | The file output works; next configure playback and the virtual audio device, then test from another device. |
-| Changes not showing for a teammate | Verify you committed **and pushed**, and they fetched **and pulled**. |
+| Camera does not start | Allow camera permission, use a supported browser, and check that another application is not occupying the camera. |
+| Recognition model does not load | Confirm the files exist in `frontend/public/recognition-model/` and that the app is being served from the frontend project. |
+| No phrase is detected | Use only trained labels and supported sequences; check lighting, framing, background, and model confidence. |
+| Python package import fails | Install dependencies with the Python interpreter from the project's `.venv` and rerun `pip install -r requirements.txt`. |
+| Gemini cleanup is skipped | Confirm `GEMINI_API_KEY` is set in `backend/.env`; the backend will fall back to the original text if cleanup fails. |
+| ElevenLabs speech fails | Check `ELEVENLABS_API_KEY`, account quota, network access, and configured model/voice settings. |
+| Local frontend speech request fails | Start `phrase_api.py`, set `SIGNWAVE_FRONTEND_ORIGIN` to the exact frontend origin, set `VITE_SIGNWAVE_LOCAL_SPEECH=true`, and restart both servers. |
+| Hosted live speech is unavailable | Confirm Base44 has `SIGNWAVE_SPEECH_URL` and `SIGNWAVE_SPEECH_TOKEN`, the URL uses HTTPS, and the Python service accepts the matching bearer token. |
+| Audio is generated but not heard | Check browser audio permissions/output device and verify playback separately from the call application. |
 
-## Hack The Nest demo checklist
+## Contributing
 
-- [ ] Sign recognized reliably from a small, **verified** vocabulary
-- [ ] One accepted sign produces one caption and one spoken message
-- [ ] Typed text can independently produce ElevenLabs audio
-- [ ] Audio reaches a second device (once call routing is ready)
-- [ ] No API keys in GitHub
-- [ ] All teammates can explain their own code
-- [ ] Public GitHub repository ready for final Devpost submission
-- [ ] Demo video is **three minutes or less**
+1. Fetch and pull the latest changes before starting work.
+2. Work in the module assigned to you and coordinate changes to shared interfaces.
+3. Keep dependencies documented in `requirements.txt` or `package.json`.
+4. Run the relevant frontend lint/build checks or backend tests before opening a pull request.
+5. Review staged files and confirm no secrets, local settings, or generated artifacts are included.
+6. Use a descriptive commit message and explain any changes to supported signs, phrases, or setup steps.
 
-**Event schedule (Eastern, Nov 15, 2026):** Draft submission at **12:00 AM**, final Devpost submission at **12:00 PM**, demo judging at **1:15 PM**. Confirm updates in the official event app or Discord.
+## Acknowledgments
+
+Built for **Hack The Nest 2026**. SignWave brings together browser-based hand-gesture recognition, language processing, and speech synthesis to explore more accessible communication.
 
 ---
 
-**For teammates:** If setup fails, share the error message, the command you ran, and your Python version. **Never share your `.env` file or API key.**
+**Questions or setup issues?** Open an issue in this repository with the command you ran, the relevant error message, and your operating system. Never include API keys, tokens, or your `.env` file.
