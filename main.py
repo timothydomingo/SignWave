@@ -1,5 +1,7 @@
 """SignWave: type a sentence, then hear it spoken."""
 
+from argparse import ArgumentParser
+
 from language_processing import clean_text_with_details
 from speech import speak_text
 
@@ -13,7 +15,7 @@ def process_text(text: str) -> tuple[str, str | None, bool]:
     return clean_text_with_details(text)
 
 
-def main():
+def main(voice=None):
     print("SignWave")
     print("Type a sentence and press Enter to hear it.")
     print("Type quit to exit.")
@@ -36,7 +38,7 @@ def main():
         print(f"TEXT SENT TO ELEVENLABS: {text_to_speak}")
 
         try:
-            saved = speak_text(text_to_speak)
+            saved = speak_text(text_to_speak, voice=voice)
             print(f"Saved speech to {saved.resolve()}")
         except Exception as exc:
             # One failed request should not stop the program.
@@ -45,4 +47,10 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = ArgumentParser(description="Turn typed sentences into speech.")
+    parser.add_argument(
+        "--voice",
+        choices=("male", "female"),
+        help="Use George (male) or Sarah (female) for this session.",
+    )
+    main(voice=parser.parse_args().voice)
